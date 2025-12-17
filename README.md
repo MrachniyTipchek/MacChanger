@@ -1,1 +1,31 @@
-# MacChangerWindows utility for changing MAC addresses via registry.## Features- Change MAC address for any network adapter- Reset to original MAC address  - Generate random MAC addresses- Requires administrator rights- Automatic reboot after changes## Usage1. Run as Administrator2. Select network adapter3. Enter or generate MAC address4. Apply changes and reboot## AuthorDeveloped by MrachniyTipchek
+# MacChanger
+
+## Описание
+
+**MacChanger** — Windows-приложение для изменения MAC-адресов сетевых адаптеров.  
+Графический интерфейс на PySide6, работа через реестр Windows, генерация корректных MAC-адресов.
+
+## Основные функции
+
+* **Изменение MAC-адреса**: установка нового MAC-адреса для любого сетевого адаптера
+* **Генерация адресов**: автоматическая генерация корректных MAC-адресов (unicast, locally administered)
+* **Сброс настроек**: возврат к стандартному MAC-адресу
+* **Предустановленные адреса**: 4 готовых MAC-адреса для быстрого выбора
+* **Валидация**: проверка формата и корректности MAC-адреса
+
+## Как пользоваться
+
+1. **Запуск**  
+   Запустить `MacChanger.exe` с правами администратора
+2. **Работа**  
+   * Выбрать сетевой адаптер  
+   * Ввести MAC-адрес или сгенерировать  
+   * Нажать APPLY MAC  
+   * Перезагрузить систему
+3. **Сброс**  
+   Нажать RESET MAC для возврата к заводским настройкам
+
+## Автор и лицензия
+
+- **Автор**: [MrachniyTipchek](https://github.com/MrachniyTipchek)
+- **Лицензия**: MIT (см. файл `LICENSE`)
