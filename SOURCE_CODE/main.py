@@ -7,6 +7,8 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                                QPushButton, QListWidget,
                                QMessageBox, QGroupBox)
 
+NETWORK_ADAPTERS_REGISTRY_PATH = r"SYSTEM\CurrentControlSet\Control\Class\{4d36e972-e325-11ce-bfc1-08002be10318}"
+
 
 class MacChanger(QMainWindow):
     def __init__(self):
@@ -80,8 +82,7 @@ class MacChanger(QMainWindow):
     def get_network_adapters(self):
         adapters = []
         try:
-            key_path = r"SYSTEM\CurrentControlSet\Control\Class\{4d36e972-e325-11ce-bfc1-08002be10318}"
-            with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, key_path) as key:
+            with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, NETWORK_ADAPTERS_REGISTRY_PATH) as key:
                 for i in range(winreg.QueryInfoKey(key)[0]):
                     try:
                         subkey_name = f"{i:04d}"
@@ -99,22 +100,24 @@ class MacChanger(QMainWindow):
                                 continue
                     except FileNotFoundError:
                         continue
-        except Exception as e:
-            print(f"Error reading adapters: {e}")
+        except Exception:
+            pass
         return adapters
 
     def on_mac_select(self, item):
         self.mac_entry.setText(item.text())
 
     def generate_mac(self):
-        first_char = random.choice("02468ACE")
-        second_char = random.choice("26AE")
-        remaining = "".join([random.choice("0123456789ABCDEF") for _ in range(10)])
-        mac = first_char + second_char + remaining
+        first_octet = (random.randint(0, 255) & 0xFE) | 0x02
+        remaining_bytes = [random.randint(0, 255) for _ in range(5)]
+        mac = f"{first_octet:02X}{''.join(f'{byte:02X}' for byte in remaining_bytes)}"
         self.mac_entry.setText(mac)
 
+    def normalize_mac(self, mac):
+        return mac.upper().replace(":", "").replace("-", "").replace(" ", "")
+
     def validate_mac(self, mac):
-        mac = mac.upper().replace(":", "").replace("-", "").replace(" ", "")
+        mac = self.normalize_mac(mac)
         if len(mac) != 12:
             return False
         try:
@@ -137,24 +140,32 @@ class MacChanger(QMainWindow):
             except subprocess.CalledProcessError as e:
                 QMessageBox.critical(self, "Reboot Error", f"Failed to reboot system: {e}")
 
+    def get_adapter_name(self, combo_text):
+        parts = combo_text.rsplit(' (', 1)
+        return parts[0] if parts else combo_text
+
     def apply_mac(self):
         if self.adapter_combo.currentIndex() == -1:
             QMessageBox.critical(self, "Error", "Please select an adapter first")
             return
 
-        mac = self.mac_entry.text().strip().upper().replace(":", "").replace("-", "").replace(" ", "")
+        mac_input = self.mac_entry.text().strip()
         
-        if not mac:
+        if not mac_input:
             QMessageBox.critical(self, "Error", "Please enter a MAC address")
             return
 
-        if not self.validate_mac(mac):
+        mac = self.normalize_mac(mac_input)
+
+        if not self.validate_mac(mac_input):
             QMessageBox.critical(self, "Error", "Invalid MAC address format. Must be 12 hex characters (0-9, A-F)")
             return
 
+        adapter_name = self.get_adapter_name(self.adapter_combo.currentText())
+
         reply = QMessageBox.question(self, "Confirm MAC Change",
                                      f"Are you sure you want to change MAC address to:\n{mac}?\n\n"
-                                     f"Adapter: {self.adapter_combo.currentText().split(' (')[0]}",
+                                     f"Adapter: {adapter_name}",
                                      QMessageBox.Yes | QMessageBox.No)
 
         if reply != QMessageBox.Yes:
@@ -167,8 +178,7 @@ class MacChanger(QMainWindow):
         adapter = self.adapters[selected_index]
 
         try:
-            key_path = r"SYSTEM\CurrentControlSet\Control\Class\{4d36e972-e325-11ce-bfc1-08002be10318}" + "\\" + \
-                       adapter['path']
+            key_path = f"{NETWORK_ADAPTERS_REGISTRY_PATH}\\{adapter['path']}"
             with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, key_path, 0, winreg.KEY_SET_VALUE) as key:
                 winreg.SetValueEx(key, "NetworkAddress", 0, winreg.REG_SZ, mac)
 
@@ -190,17 +200,18 @@ class MacChanger(QMainWindow):
             return
         adapter = self.adapters[selected_index]
 
+        adapter_name = self.get_adapter_name(self.adapter_combo.currentText())
+
         reply = QMessageBox.question(self, "Confirm MAC Reset",
                                      f"Are you sure you want to reset MAC address to default?\n\n"
-                                     f"Adapter: {self.adapter_combo.currentText().split(' (')[0]}",
+                                     f"Adapter: {adapter_name}",
                                      QMessageBox.Yes | QMessageBox.No)
 
         if reply != QMessageBox.Yes:
             return
 
         try:
-            key_path = r"SYSTEM\CurrentControlSet\Control\Class\{4d36e972-e325-11ce-bfc1-08002be10318}" + "\\" + \
-                       adapter['path']
+            key_path = f"{NETWORK_ADAPTERS_REGISTRY_PATH}\\{adapter['path']}"
             with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, key_path, 0, winreg.KEY_SET_VALUE) as key:
                 try:
                     winreg.DeleteValue(key, "NetworkAddress")
@@ -217,8 +228,8 @@ class MacChanger(QMainWindow):
 def is_admin():
     try:
         import ctypes
-        return ctypes.windll.shell32.IsUserAnAdmin()
-    except:
+        return ctypes.windll.shell32.IsUserAnAdmin() != 0
+    except (AttributeError, OSError):
         return False
 
 
